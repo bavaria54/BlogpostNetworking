@@ -1,35 +1,35 @@
-# Networking for an FPS by Jim Hamers  -  January 2026
+# Networking for an FPS by Jim Hamers - January 2026
 
 ### Introduction
 This is a blogpost about online FPS games and their netcode to make the game fair and responsive. We will be diving into techniques to make the online experience feel responsive despite the network in between.
-To learn about these topics I've made a basic FPS game in C++ with the networking library ENet and will expand on this topic with some pseudo-code from my frame of reference. This blogpost expects familiarity with online gaming specifically with the FPS genre, also some networking knowledge is helpful but not needed.
+To learn about these topics, I've made a basic FPS game in C++ with the networking library ENet and will expand on this topic with some pseudocode from my frame of reference. This blog post expects familiarity with online gaming, specifically with the FPS genre; also, some networking knowledge is helpful but not needed.
 Most sections will show pseudo-code at the end to help explain.
 
 ### Jargon
-- FPS, First Person Shooter the game genre.
+- FPS, First Person Shooter, the game genre.
 - PoV, Point of View.
-- Client, The player's perspective or machine.
-- Server, Data broker between clients.
-- Packet, Information between server/client.
-- Latency, Delay in milliseconds from server to client one way.
-- Jitter, Time variance between packets arrival.
-- Frame, One render update on the clients machine.
-- Tick, One fixed step for networkside, running both on the server and client.
-- Input, The clients intent for one tick, key presses, mouse movement.
+- Client, the player's perspective, or machine.
+- Server, data broker between clients.
+- Packet, information between server/client.
+- Latency, delay in milliseconds from server to client one way.
+- Jitter, time variance between packet arrivals.
+- Frame, one render update on the client's machine.
+- Tick, one fixed step for networkside, running both on the server and client.
+- Input: The client's intent for one tick, key presses, and mouse movement.
 
 ## Table of contents
 
 1. Client-Server architecture
 2. Authoritative server
-3. Clientside prediction
+3. Client-side prediction
 4. Server reconciliation
 5. Poor network condition mitigation
 6. Rollback hitscan
 7. Conclusion
 
-## 1. Client-Server architecture
-A client is just the machine playing the game, singleplayer games don't need a server to communicate with. So effectively you're playing on an authoritative client. 
-This all works fine until we want to add more players. The players need to communicate with eachother, this middleman is called a server. The server is the hub that sends and receives all the data between the clients. The clients don't need any information about the other clients to send or receive data.
+## 1. Client-Server Architecture
+A client is just the machine playing the game; single-player games don't need a server to communicate with. So effectively you're playing on an authoritative client. 
+This all works fine until we want to add more players. The players need to communicate with each other; this middleman is called a server. The server is the hub that sends and receives all the data between the clients. The clients don't need any information about the other clients to send or receive data.
 
 ```cpp
 //What the client sends, server receives
@@ -75,16 +75,16 @@ An authoritative server will be the brain behind the game. When a client wants t
 
 ![alt text](gifs/authoratativeServer.gif)
 
-Above there is a gif from the player and servers view. Notice that the server's PoV is ahead of the client's.
+Above there is a GIF from the player's and server's views. Notice that the server's PoV is ahead of the client's.
 
 There are tradeoffs for an authoritative server. Having any meaningful latency will make the client perceive a noticeable delay for their input. Considering the data has to travel both ways. You'll feel the delay twice as much.
 
 ### Why do we want an authoritative server?
 
-If a nefarious player would be playing with a modified client for example, and modifying their speed, the ground truth will be the same for client and server, because the client isn't doing the movement itself. The server is moving every player.
-But it's not only beneficial against cheating, having a ground truth that everyone relies on helps synchronisation. If a player would somehow drop packets when they receive the latest packet from the server, they'd be on the same tick as everyone else.
+If a nefarious player were to be playing with a modified client, for example, and modifying their speed, the ground truth will be the same for client and server, because the client isn't doing the movement itself. The server is moving every player.
+But it's not only beneficial against cheating; having a ground truth that everyone relies on helps synchronization. If a player would somehow drop packets when they receive the latest packet from the server, they'd be on the same tick as everyone else.
 
-But knowing why doesn't mean it's worth the sacrifice. Surely we can do something about this input delay, and yes there is and that's clientside prediction.
+But knowing why doesn't mean it's worth the sacrifice. Surely we can do something about this input delay, and yes, there is, and that's client-side prediction.
 
 ```cpp
 // Structs
@@ -135,15 +135,15 @@ So the key difference here:
 - Server responds with all client locations.
 - Client updates their own location from the received server broadcast.
 
-## 3. Client side prediction
+## 3. Client-side prediction
 
 To improve on the authoritative server design, client prediction comes in.
 Having any delay on your inputs doesn't play well; it will feel sluggish and detracts from the experience.
-To combat this delay, we're going to predict/assume that the server will move us according to our input, so we move prematurely instead of waiting for the server to acknowledge and update our position. Now we've solved the input delay, as long as everything stays "perfectly in-sync" (More on that later).
+To combat this delay, we're going to predict/assume that the server will move us according to our input, so we move prematurely instead of waiting for the server to acknowledge and update our position. Now we've solved the input delay, as long as everything stays "perfectly in sync" (more on that later).
 
 ![alt text](gifs/clientPrediction.gif)
 
-There is some small hitching that happens in the GIF, that our code will not have. We're ignoring the servers response for our own position (for now).
+There is some small hitching that happens in the GIF that our code will not have. We're ignoring the server's response for our own position (for now).
 
 ```cpp
 // Member variables for reference
@@ -193,15 +193,15 @@ ClientPredict(ClientPacket);
 ClientSendData(ClientPacket);
 ```
 
-This synchronisation can drift easily.
-- Packet drop (Server never receives a tick from the client)
-- Frequency missmatch, both devices run 60hz, but hiccups happen.
+This synchronization can drift easily.
+- Packet drop (the server never receives a tick from the client)
+- Frequency mismatch: both devices run at 60 Hz, but hiccups happen.
 
 Now we finish this puzzle with the final piece. Server reconciliation correcting our prediction when it drifts.
 
 ## 4. Server reconciliation
 
-Server reconciliation is more than just updating my position whenever I receive an update from the server. It's also storing all the inputs we've sent to the server in a list with a #tick variable, so we know exactly what inputs the server has received, and which haven't. Whenever the client receives an updated version of their position, they can redo all the inputs that haven't been acknowledged, resulting in the exact same position as before.
+Server reconciliation is more than just updating my position whenever I receive an update from the server. It's also storing all the inputs we've sent to the server in a list with a #tick variable, so we know exactly what inputs the server has received and which haven't. Whenever the client receives an updated version of their position, they can redo all the inputs that haven't been acknowledged, resulting in the exact same position as before.
 
 ![alt text](gifs/serverReconciliation.gif)
 
@@ -277,29 +277,29 @@ UpdatePosition(ServerBroadcast)
 ClientSendData(ClientPacket);
 ```
 
-All the prediction moved inside of a loop.
-After updating my position from the server, we re-apply all the inputs we've stored.
+All the predictions moved inside of a loop.
+After updating my position from the server, we reapply all the inputs we've stored.
 Note that this logic will be very similar to what the server does when receiving inputs.
 
 ## 5. Poor network condition mitigation
 
 ### Latency
 
-In the real world, the latency will fluctuate, some packets arrive sooner than others.
-Our prediction was done to mitigate all latency for the players movement.
+In the real world, the latency will fluctuate; some packets arrive sooner than others.
+Our prediction was done to mitigate all latency for the players' movement.
 
-Other clients that the player sees walking around will not have this prediction luxury. The only surface level fix is to have the client be 1 or more ticks behind, and you buffer that difference. But this is not perfect, any client can lag for longer than you buffer. This problem is harder than it seems, perhaps the focus of my next networking-related blog.
+Other clients that the player sees walking around will not have this prediction luxury. The only surface-level fix is to have the client be 1 or more ticks behind, and you buffer that difference. But this is not perfect; any client can lag for longer than you buffer. This problem is harder than it seems, perhaps the focus of my next networking-related blog.
 
 ### Packet drops
 
-If some packets are dropped we're missing data. By re-sending every input the server will always get updated on our location whenever any packet arrives. We need to drop more packets in a row than we buffer, since the inputs are relatively small in data, we can have a buffer of 60 inputs (1 second) for negligible cost.
+If some packets are dropped, we're missing data. By re-sending every input, the server will always get updated on our location whenever any packet arrives. We need to drop more packets in a row than we buffer; since the inputs are relatively small in data, we can have a buffer of 60 inputs (1 second) for negligible cost.
 
 ### Packets in the wrong order
 
 Reject any packet that's older than the newest we've received, since we're already sending every old packet with any newer packet, we're never losing data as long as it fits in our input buffer.
 
 We're already getting rid of the older packets the server has acknowledged, but what if the server's broadcast is out of order?
-You just check what tick the broadcast gave you, if it's any older than the newest received, just ignore it.
+You just check what tick the broadcast gave you; if it's any older than the newest received, just ignore it.
 
 ```cpp
 ClientReceiveData(ServerBroadcast);
@@ -317,22 +317,22 @@ This packet rejection counts the same for both server and client. Since both sid
 
 ## 6. Rollback hitscan
 
-This next part is where the FPS-netcode comes into play, before it's just generic inputs that apply to every game. Even though network rollback is applied in many different games, this will be about shooting rollback.
+This next part is where the FPS netcode comes into play; before it's just generic inputs that apply to every game. Even though network rollback is applied in many different games, this will be about shooting rollback.
 
 ![alt text](image-5.png)
-Counter-Strike as an example, you're seeing a player and their hitboxes from multiple frames.
+In Counter-Strike, as an example, you're seeing a player and their hitboxes from multiple frames.
 
-Network rollback is for the server to go back in time, and review the footage with all the data that the client had at the time.
+Network rollback is for the server to go back in time and review the footage with all the data that the client had at the time.
 
-Knowing we're predicting so we're ahead of the server, but we're also waiting for the server to send updated positions of the enemy team which means the enemies we see are always a few ticks behind their real position on the server. Shooting at them is shooting at a ghost.
+Knowing we're predicting means we're ahead of the server, but we're also waiting for the server to send updated positions of the enemy team, which means the enemies we see are always a few ticks behind their real position on the server. Shooting at them is shooting at a ghost.
 
-The server needs to store the positions of players for N amount of ticks.
+The server needs to store the positions of players for an N amount of ticks.
 
 ![alt text](image-6.png)
 
-The black lines represent where the enemy's hitbox is for the player's PoV, the green lines represent where the enemy is for the server's PoV. As you can see there is a discrepancy. With higher latency the lines will drift further apart.
+The black lines represent where the enemy's hitbox is for the player's PoV; the green lines represent where the enemy is for the server's PoV. As you can see, there is a discrepancy. With higher latency, the lines will drift further apart.
 
-Anyone who has played an online shooter has experienced dying when you just duck behind a wall for cover, it might feel unfair to you, but on the other end the enemy shot you a couple ticks back where you weren't fully behind cover just yet. So either you don't get hit and the shooter has a bad experience or try to make the best of it. It's the price we have to pay.
+Anyone who has played an online shooter has experienced dying when you just ducked behind a wall for cover; it might feel unfair to you, but on the other end, the enemy shot you a couple ticks back where you weren't fully behind cover just yet. So either you don't get hit and the shooter has a bad experience or you try to make the best of it. It's the price we have to pay.
 
 To fix this discrepancy, we roll back to the exact client PoV from a tick in the past.
 
@@ -346,8 +346,8 @@ struct ClientPacket
 };
 ```
 
-We're now also sending the lastAcknowledgedTick. My location on a tick will see the players from a previous tick, that's why we send this info as well.
-As the server reconstructs the scene, it'll use the currentTick from the packet, which also tells the server it shot in that frame. And use the lastAcknowledgedTick from that packet to determine enemy player location.
+We're now also sending the last acknowledged tick. My location on a tick will see the players from a previous tick; that's why we send this info as well.
+As the server reconstructs the scene, it'll use the current tick from the packet, which also tells the server it shot in that frame. And use the lastAcknowledgedTick from that packet to determine enemy player location.
 
 ```cpp
 //Short example of rollback:
@@ -401,18 +401,18 @@ Rollback(PlayerShootPacket)
 }
 ```
 
-So we rewind the clients, we take the player's position. Then we trace a round with everything in the same place (from shooter PoV). And now we get an accurate result, that's tested by the server, and even with some lag on both the player and client it'll be accurate.
+So we rewind the clients; we take the player's position. Then we trace a round with everything in the same place (from shooter PoV). And now we get an accurate result that's tested by the server, and even with some lag on both the player and client, it'll be accurate.
 
-If you've noticed that when you're shooting on the client the chance that it perfectly happens on tick is unlikely, you're right. The game can run many more frames per second than the 60hz we have now. We could also send deltaTime from the last tick to the new, and lerp between 2 frames to more accurately get everyone's position and shooting angle. Implement it if you want to be serious about accuracy.
+If you've noticed that when you're shooting on the client, the chance that it perfectly happens on tick is unlikely, you're right. The game can run many more frames per second than the 60 Hz we have now. We could also send deltaTime from the last tick to the new one and lerp between 2 frames to more accurately get everyone's position and shooting angle. Implement it if you want to be serious about accuracy.
 
 ## 7. Conclusion
 
 Researching and working on networking for these past 8 weeks has been a blast. Figuring out and researching all the clever techniques implemented to make the game feel as responsive as possible yet fair on both sides is awesome.
-I have a new-found respect for online games managing to keep every client in-sync.
+I have a newfound respect for online games managing to keep every client in sync.
 
-In the future I'd love to tackle harder replication with prediction of compounding movement, for example physics forces with collision rewind and correcting.
+In the future I'd love to tackle harder replication with prediction of compounding movement, for example, physics forces with collision rewind and correcting.
 
-Also with an authoritative server you don't prevent cheating altogether, there are many kinds of cheating like seeing through walls, aimbotting and more. Learning more about ways to prevent and detect cheating players is a big part of a successful online shooter game which I'll delve into more in the future.
+Also, with an authoritative server, you don't prevent cheating altogether; there are many kinds of cheating, like seeing through walls, aimbotting, and more. Learning more about ways to prevent and detect cheating players is a big part of a successful online shooter game, which I'll delve into more in the future.
 
 ### Sources:
 https://www.gabrielgambetta.com/client-server-game-architecture.html
