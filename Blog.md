@@ -415,7 +415,7 @@ In the future I'd love to tackle harder replication with prediction of compoundi
 Also, with an authoritative server, you don't prevent cheating altogether; there are many kinds of cheating, like seeing through walls, aimbotting, and more. Learning more about ways to prevent and detect cheating players is a big part of a successful online shooter game, which I'll delve into more in the future.
 
 ### Sources:
-https://www.gabrielgambetta.com/client-server-game-architecture.html
-https://codersblock.org/multiplayer-fps/part1/
-https://technology.riotgames.com/news/peeking-valorants-netcode
-https://clutchround.com/csgo-netsettings-for-competitive-play/
+- https://www.gabrielgambetta.com/client-server-game-architecture.html
+- https://codersblock.org/multiplayer-fps/part1/
+- https://technology.riotgames.com/news/peeking-valorants-netcode
+- https://clutchround.com/csgo-netsettings-for-competitive-play/
